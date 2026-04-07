@@ -269,17 +269,16 @@ main {
   position: relative;
   line-height: 0;
   border-radius: 4px;
-  /* no overflow:hidden — SVG is no longer a child */
   box-shadow: var(--shadow), 0 0 0 1px var(--border);
   transform-origin: center center;
-  will-change: transform;
+  flex-shrink: 0; /* don't let flex shrink the wrapper when zoomed larger than canvas */
+  /* no will-change: transform — that promotes a 1× DPR layer on HiDPI, causing blur */
 }
 
 #main-image {
   display: block;
-  max-width: calc(100vw - var(--sidebar-w) - 48px);
-  max-height: calc(100vh - var(--header-h) - 48px);
-  object-fit: contain;
+  /* width/height are set explicitly by JS (applyTransform) so the browser
+     always samples from the full-resolution source rather than scaling a bitmap */
   user-select: none;
   pointer-events: none;
   border-radius: 4px;

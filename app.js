@@ -27,6 +27,8 @@ const state = {
   nextId:     1,
   selectedId: null,
   coordMode:  'pct',     // 'pct' | 'px'
+  baseW:      0,         // image display width at zoom=1 (px) — set on load & resize
+  baseH:      0,         // image display height at zoom=1 (px)
 
   // Draw mode
   drawMode: { active: false, startX: 0, startY: 0 },
@@ -174,9 +176,28 @@ function isInImage(clientX, clientY) {
 
 /* ─── Zoom / Pan ─────────────────────────────────────────────────── */
 
+/**
+ * Calculate the image's fit-to-canvas size at zoom=1 from natural dimensions.
+ * Called on image load and on window resize.
+ */
+function computeBaseDisplaySize() {
+  const padding = 48;
+  const maxW = canvasArea.clientWidth  - padding;
+  const maxH = canvasArea.clientHeight - padding;
+  const { naturalWidth: nw, naturalHeight: nh } = mainImage;
+  const scale = Math.min(1, maxW / nw, maxH / nh); // never upscale at zoom=1
+  return { w: Math.round(nw * scale), h: Math.round(nh * scale) };
+}
+
+/**
+ * Apply current zoom and pan.
+ * Sets explicit image dimensions (not CSS scale) so the browser re-samples from the
+ * full-resolution source at every zoom level instead of scaling a pre-rasterized bitmap.
+ */
 function applyTransform() {
-  imageWrapper.style.transform =
-    `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+  mainImage.style.width  = `${state.baseW * state.zoom}px`;
+  mainImage.style.height = `${state.baseH * state.zoom}px`;
+  imageWrapper.style.transform = `translate(${state.panX}px, ${state.panY}px)`;
 }
 
 function updateZoomLabel() {
@@ -550,15 +571,18 @@ function loadImage(file) {
     state.nextId     = 1;
     state.selectedId = null;
 
-    // Reset zoom/pan on new image
-    state.zoom = 1;
-    state.panX = 0;
-    state.panY = 0;
+    // Compute fit-to-canvas size, then reset zoom/pan
+    emptyState.hidden   = true;   // must be hidden first so canvas has its full clientWidth
+    imageWrapper.hidden = false;  // must be visible so image has layout
+    const { w, h } = computeBaseDisplaySize();
+    state.baseW = w;
+    state.baseH = h;
+    state.zoom  = 1;
+    state.panX  = 0;
+    state.panY  = 0;
     applyTransform();
     updateZoomLabel();
 
-    emptyState.hidden   = true;
-    imageWrapper.hidden = false;
     zoomControls.hidden = false;
     importBtn.disabled  = false;
 
@@ -586,6 +610,9 @@ function onOverlayMouseDown(e) {
     overlay.style.cursor = 'grabbing';
     return;
   }
+
+  // Only respond to left-click for drawing
+  if (e.button !== 0) return;
 
   // Only start drawing on the SVG background (not on box rects or handles)
   if (e.target !== overlay && e.target.id !== 'preview-rect') return;
@@ -643,6 +670,7 @@ function finishDraw(clientX, clientY) {
 /* ─── Mouse: Moving ──────────────────────────────────────────────── */
 
 function onBoxRectMouseDown(e, boxId) {
+  if (e.button !== 0) return;  // only left-click moves boxes
   if (state.spaceDown) return; // let pan handler take over
   e.preventDefault();
   e.stopPropagation();
@@ -661,6 +689,7 @@ function onBoxRectMouseDown(e, boxId) {
 /* ─── Mouse: Resizing ────────────────────────────────────────────── */
 
 function onHandleMouseDown(e, boxId, handleType) {
+  if (e.button !== 0) return;  // only left-click resizes boxes
   if (state.spaceDown) return;
   e.preventDefault();
   e.stopPropagation();
@@ -937,7 +966,13 @@ let resizeTimer;
 function onWindowResize() {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    if (state.image) renderAll();
+    if (!state.image) return;
+    // Recompute fit-to-canvas size — available space changed with the window
+    const { w, h } = computeBaseDisplaySize();
+    state.baseW = w;
+    state.baseH = h;
+    applyTransform();
+    renderAll();
   }, 80);
 }
 
@@ -967,6 +1002,15 @@ function initApp() {
   // Keyboard
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('keyup',   onKeyUp);
+
+  // Middle-mouse-button panning — capture phase so it fires even if a child calls stopPropagation
+  canvasArea.addEventListener('mousedown', e => {
+    if (e.button !== 1 || !state.image) return;
+    e.preventDefault(); // prevent the browser's native autoscroll cursor
+    state.isPanning = true;
+    state.panStart  = { mouseX: e.clientX, mouseY: e.clientY, panX: state.panX, panY: state.panY };
+    overlay.style.cursor = 'grabbing';
+  }, { capture: true });
 
   // Scroll-wheel zoom (non-passive so we can prevent default scroll)
   canvasArea.addEventListener('wheel', onWheel, { passive: false });
