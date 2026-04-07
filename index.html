@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BBox Mapper</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header>
+    <div class="header-brand">
+      <svg class="brand-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/>
+        <rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" fill-opacity="0.25" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/>
+        <circle cx="7" cy="7" r="1.5" fill="currentColor"/>
+        <circle cx="17" cy="7" r="1.5" fill="currentColor"/>
+        <circle cx="7" cy="17" r="1.5" fill="currentColor"/>
+        <circle cx="17" cy="17" r="1.5" fill="currentColor"/>
+      </svg>
+      <span class="brand-name">BBox<span class="brand-accent">Mapper</span></span>
+    </div>
+    <div class="header-actions">
+      <button id="open-btn" class="btn btn-primary">
+        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 7a2 2 0 012-2h2.586a1 1 0 01.707.293L9.414 6.4A1 1 0 0010.121 6.7H15a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M10 10v4M8 12l2-2 2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Open Image
+      </button>
+      <input type="file" id="file-input" accept="image/*" hidden />
+    </div>
+  </header>
+
+  <main>
+    <section id="canvas-area">
+
+      <div id="empty-state">
+        <div class="empty-icon">
+          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="6" width="52" height="52" rx="6" stroke="currentColor" stroke-width="2" stroke-dasharray="6 4"/>
+            <path d="M22 42l8-10 6 7 5-5 9 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="22" cy="24" r="4" stroke="currentColor" stroke-width="2"/>
+            <path d="M32 18v8M28 22h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h2>No image loaded</h2>
+        <p>Click <strong>Open Image</strong> or drop an image file here to get started</p>
+        <button class="btn btn-outline" id="empty-open-btn">
+          Choose Image
+        </button>
+      </div>
+
+      <div id="image-wrapper" hidden>
+        <img id="main-image" alt="Loaded image" draggable="false" />
+      </div>
+
+      <!-- SVG overlay lives outside the scaled image-wrapper so it renders at native resolution -->
+      <svg id="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+
+      <!-- Zoom Controls -->
+      <div id="zoom-controls" hidden>
+        <button id="zoom-out" class="zoom-btn" title="Zoom out (scroll down)">
+          <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 8h10" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <span id="zoom-label">100%</span>
+        <button id="zoom-in" class="zoom-btn" title="Zoom in (scroll up)">
+          <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <div class="zoom-divider"></div>
+        <button id="zoom-reset" class="zoom-btn" title="Reset zoom and pan">
+          <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="5" y="5" width="6" height="6" rx="0.75" stroke="currentColor" stroke-width="1.25"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Pan hint -->
+      <div id="pan-hint" hidden>
+        <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 2v3M10 2v3M4 7l-2 2 2 2M12 7l2 2-2 2M2 9h12M6 11v3M10 11v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Pan mode — drag to move
+      </div>
+
+    </section>
+
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h2>
+          Boxes
+          <span id="box-count" class="badge">0</span>
+        </h2>
+        <div class="sidebar-header-right">
+          <div class="coord-toggle">
+            <button id="toggle-pct" class="coord-toggle-btn active" title="Show percentages">%</button>
+            <button id="toggle-px"  class="coord-toggle-btn"        title="Show pixels">px</button>
+          </div>
+          <button id="clear-btn" class="btn btn-ghost btn-sm" title="Clear all boxes" hidden>
+            <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 4l1-1h6l1 1M4 4h12M15 4l-1 12H6L5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 8v5M12 8v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Image info strip -->
+      <div id="image-info" hidden>
+        <span class="image-info-label">Image</span>
+        <span id="image-dims">–</span>
+      </div>
+
+      <div id="box-list">
+        <div class="sidebar-empty">
+          <p>Draw boxes on the image to see them here</p>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <input type="file" id="import-input" accept=".json" hidden />
+        <button id="import-btn" class="btn btn-outline btn-full" disabled>
+          <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 14V4M7 7l3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 14v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          Import JSON
+        </button>
+        <button id="export-btn" class="btn btn-outline btn-full" disabled>
+          <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 3v10M7 10l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 14v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          Export JSON
+        </button>
+      </div>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
